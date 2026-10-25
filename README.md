@@ -4,6 +4,8 @@ Neurology Insurance Solution — Saba Gobal, CPCU
 
 An interactive reference-model demonstration built on the 49-table financial CDM workbook, including 575 column definitions, 306 picklist options, and 106 relationship entries.
 
+The **Enterprise Ontology Factory** tab adds a structured Excel proof of concept for **United States → Florida → Homeowners → HO3 → All Modules**. It includes an editable synthetic template with 19 entities, 79 field definitions, 20 ontology relationships, 24 picklist options, and five proposed controls.
+
 ## Features
 
 - Search tables, columns, definitions and picklist options.
@@ -12,6 +14,7 @@ An interactive reference-model demonstration built on the 49-table financial CDM
 - Download RDF/Turtle (`.ttl`), catalog CSVs, and the source Excel workbook.
 - Upload an updated Excel catalog with the same nine worksheets to explore it during the session.
 - Inspect financial posting, reconciliation and filing controls.
+- Download or upload a structured insurer CDM workbook; select country, state, LOB, product and module; validate scope and graph; export scoped RDF/Turtle.
 
 ## Run locally
 
@@ -46,7 +49,18 @@ The ontology exporter creates OWL classes, datatype properties, relationship pro
 | --- | --- |
 | `app.py` | Streamlit UI and graph explorer |
 | `ontology.py` | Ontology construction and RDF/Turtle export |
+| `factory.py` | Scoping, reference validation and ontology-frame conversion |
 | `data/*.xlsx` | Canonical tables, columns, picklists, ontology and validations |
 | `requirements.txt` | Python dependencies |
 | `.streamlit/config.toml` | App theme and server configuration |
+
+## HO3 multi-module proof of concept
+
+1. Open **Enterprise Ontology Factory** and select United States / Florida / Homeowners / HO3 / All Modules.
+2. Download `FL_HO3_All_Modules_Ontology_POC.xlsx` and inspect its `Entities`, `Fields`, `Relationships`, `Picklists`, and `Rules` sheets.
+3. Optionally add insurer-approved definitions while preserving the column headers. Reupload the workbook.
+4. Review structural validation. A referenced entity or picklist domain outside the scope is flagged; unapproved entity records are marked for SME review.
+5. Explore the resulting graph and download its RDF/Turtle file. Scope filtering is exact or recognizes `ALL` / `*` applicability entries.
+
+This proof of concept **does not** turn arbitrary unstructured Excel sheets into a trustworthy ontology automatically, persist SME approvals, or execute rating and posting rules. The workbook schema is the controlled intake contract. The current selector is intentionally scoped to Florida HO3; additional product catalogs can be added in later iterations.
 

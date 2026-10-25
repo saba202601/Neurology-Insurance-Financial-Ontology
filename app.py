@@ -10,11 +10,13 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ontology import build_turtle, resolve_neighborhood
+from factory import SCOPE, load_factory_workbook, assemble_catalog, validate_catalog, to_rdf_frames
 
 
 st.set_page_config(page_title="P&C Finance Ontology | Neurology Insurance", page_icon="🧠", layout="wide")
 
 DATA_FILE = Path(__file__).parent / "data" / "PnC_Financial_Reporting_GL_CDM_Ontology.xlsx"
+HO3_FILE = Path(__file__).parent / "data" / "FL_HO3_All_Modules_Ontology_POC.xlsx"
 
 
 @st.cache_data(show_spinner=False)
@@ -95,7 +97,58 @@ stats = st.columns(4)
 for box, label, count in zip(stats, ["Logical tables", "Defined columns", "Picklist options", "Ontology relationships"], [len(tables), len(fields), len(picklists), len(edges)]):
     box.metric(label, f"{count:,}")
 
-tabs = st.tabs(["Ontology graph", "Tables & columns", "Picklists", "Financial flow", "Rules & controls", "Export ontology", "About"])
+factory_tab, *tabs = st.tabs(["Enterprise Ontology Factory", "Finance ontology", "Tables & columns", "Picklists", "Financial flow", "Rules & controls", "Export ontology", "About"])
+
+with factory_tab:
+    st.subheader("Generate a country, state, LOB and product ontology")
+    st.caption("Proof of concept: assemble concepts from a structured Excel catalog, validate relationships, and export a scoped OWL-compatible ontology. It does not infer concepts from unstructured documents.")
+    with st.expander("Step 1 · Select insurance scope", expanded=True):
+        c1, c2, c3, c4, c5 = st.columns(5)
+        selected = {
+            "Country": c1.selectbox("Country", ["United States"], key="factory_country"),
+            "State": c2.selectbox("State", ["Florida"], key="factory_state"),
+            "LineOfBusiness": c3.selectbox("Line of Business", ["Homeowners"], key="factory_lob"),
+            "Product": c4.selectbox("Product", ["HO3"], key="factory_product"),
+            "Module": c5.selectbox("Module", ["All Modules", "Policy", "Coverage", "Underwriting", "Rating", "Forms", "Claims", "Billing", "Reinsurance", "Finance", "General Ledger", "Bureau Reporting", "Governance"], key="factory_module"),
+        }
+    with st.expander("Step 2 · Download or upload the Excel ontology catalog", expanded=True):
+        try:
+            sample = HO3_FILE.read_bytes()
+        except OSError as exc:
+            st.error(f"HO3 demonstration template is unavailable: {exc}")
+            sample = None
+        if sample is not None:
+            st.download_button("Download FL HO3 All Modules template", sample, file_name=HO3_FILE.name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="factory_template")
+        replacement = st.file_uploader("Upload completed insurer ontology Excel workbook", type="xlsx", key="factory_upload", help="Requires Entities, Fields, Relationships, Picklists and Rules worksheets. Uploaded data stays in this Streamlit session.")
+        source = replacement.getvalue() if replacement else sample
+        st.caption("Included demo rows are synthetic, proposed definitions only. Uploading another workbook does not modify the original Financial Reporting CDM.")
+    if source is not None:
+        try:
+            factory_tables = load_factory_workbook(source)
+            issues = validate_catalog(factory_tables, selected)
+            scoped = assemble_catalog(factory_tables, selected)
+            scoped_nodes, scoped_edges, scoped_cols = to_rdf_frames(scoped)
+        except (ValueError, OSError, ImportError, KeyError) as exc:
+            st.error(f"The uploaded ontology catalog cannot be processed: {exc}")
+        else:
+            st.markdown("**Step 3 · Validate and explore the generated ontology**")
+            metrics = st.columns(5)
+            for box, label, value in zip(metrics, ["Entities", "Fields", "Relationships", "Picklist options", "Findings"], [len(scoped_nodes), len(scoped_cols), len(scoped_edges), len(scoped["Picklists"]), len(issues)]):
+                box.metric(label, value)
+            if (issues["Severity"] == "ERROR").any():
+                st.error("Structural errors found. Correct the Excel workbook before using the export for downstream generation.")
+            else:
+                st.success("No blocking structural errors in the selected graph. Proposed records still require SME approval.")
+            with st.expander("Validation findings and SME review", expanded=False):
+                show_data(issues, "ontology_validation_findings")
+            if not scoped_nodes.empty:
+                focus = st.selectbox("Focus entity", ["Entire model"] + sorted(scoped_nodes["Entity"].tolist()), key="factory_focus")
+                st.plotly_chart(graph_figure(scoped_nodes, scoped_edges, focus, 2), width="stretch", key="factory_graph")
+                view = st.radio("Review catalog", ["Entities", "Fields", "Relationships", "Picklists", "Rules"], horizontal=True, key="factory_view")
+                show_data(scoped[view], f"ho3_{view.lower()}")
+                ttl = build_turtle(scoped_nodes, scoped_cols, scoped_edges)
+                st.download_button("Export selected ontology as RDF/Turtle", ttl.encode("utf-8"), file_name="FL_HO3_scoped_ontology.ttl", mime="text/turtle", disabled=(issues["Severity"] == "ERROR").any(), key="factory_ttl")
+                st.caption("Export contains proposed classes, attributes and relationships; it is not an approved underwriting, rating or accounting engine.")
 
 with tabs[0]:
     st.subheader("Explore connected entities")
