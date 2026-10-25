@@ -78,14 +78,30 @@ st.caption("Neurology Insurance Solution · Saba Gobal, CPCU · Global Canonical
 
 with st.sidebar:
     st.header("Data source")
-    uploaded = st.file_uploader("Optional replacement CDM workbook", type=["xlsx"], help="Must retain the nine named ontology/catalog worksheets.")
-    st.info("The included workbook is a reference model. Changes uploaded here are session-only and are not saved to the server.")
+    uploaded = st.file_uploader("Upload financial CDM or HO3 ontology workbook", type=["xlsx"], help="Accepts the Financial CDM nine-sheet format or the Enterprise Ontology Factory five-sheet catalog.")
+    st.info("Uploads are session-only and do not change the included reference workbooks.")
 
+factory_sidebar_upload = None
 try:
-    data = uploaded.getvalue() if uploaded is not None else DATA_FILE.read_bytes()
+    data = DATA_FILE.read_bytes()
+    if uploaded is not None:
+        supplied = uploaded.getvalue()
+        try:
+            load_catalog(supplied)
+        except ValueError:
+            # The new HO3 workbook has a different, intentional schema.
+            try:
+                load_factory_workbook(supplied)
+            except ValueError as exc:
+                st.sidebar.error(f"Unrecognized workbook layout: {exc}")
+            else:
+                factory_sidebar_upload = supplied
+                st.sidebar.success("HO3 ontology workbook recognized. Open Enterprise Ontology Factory.")
+        else:
+            data = supplied
     catalog = load_catalog(data)
 except (FileNotFoundError, ValueError, OSError, ImportError) as exc:
-    st.error(f"Cannot load ontology workbook: {exc}")
+    st.error(f"Cannot load the included Financial CDM workbook: {exc}")
     st.stop()
 
 tables = catalog["Tables"]
@@ -120,7 +136,9 @@ with factory_tab:
         if sample is not None:
             st.download_button("Download FL HO3 All Modules template", sample, file_name=HO3_FILE.name, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="factory_template")
         replacement = st.file_uploader("Upload completed insurer ontology Excel workbook", type="xlsx", key="factory_upload", help="Requires Entities, Fields, Relationships, Picklists and Rules worksheets. Uploaded data stays in this Streamlit session.")
-        source = replacement.getvalue() if replacement else sample
+        source = replacement.getvalue() if replacement else (factory_sidebar_upload if factory_sidebar_upload is not None else sample)
+        if replacement is None and factory_sidebar_upload is not None:
+            st.success("Using the HO3 workbook uploaded in the sidebar.")
         st.caption("Included demo rows are synthetic, proposed definitions only. Uploading another workbook does not modify the original Financial Reporting CDM.")
     if source is not None:
         try:
